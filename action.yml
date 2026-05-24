@@ -1,0 +1,98 @@
+###############################################################################
+# Composite action — Validate GitFlow Branch Order
+#
+# Asserts that a pull request follows the required GitFlow promotion path:
+#
+#   <feature-branch>  ──►  develop  ──►  staging  ──►  main
+#
+# Fails the step (exit 1) and emits a GitHub Actions error annotation when
+# the source → target pair does not match an allowed flow.
+#
+# Usage (in a workflow step):
+#
+#   - uses: tibuqx/validate-git-flow-branch-order--workflow@v1
+#     with:
+#       head-ref: ${{ github.head_ref }}
+#       base-ref: ${{ github.base_ref }}
+#
+# To customise which short-lived branches may target develop, override the
+# feature-branch-pattern input with your own ERE regex.
+###############################################################################
+
+name: Validate GitFlow Branch Order
+description: >
+  Fails if a PR skips a step in the feat/** → develop → staging → main
+  GitFlow promotion chain. Zero-dependency — no checkout required.
+
+branding:
+  icon: git-merge
+  color: green
+
+inputs:
+  head-ref:
+    description: Source branch of the pull request (pass github.head_ref).
+    required: true
+  base-ref:
+    description: Target branch of the pull request (pass github.base_ref).
+    required: true
+  feature-branch-pattern:
+    description: >
+      ERE regex matched against the head ref to decide whether a branch is
+      allowed to target develop.  Override to add or remove prefixes.
+    required: false
+    default: '^(feat|feature|fix|bugfix|hotfix|chore|docs|refactor|test|ci|build)/.+'
+
+runs:
+  using: composite
+  steps:
+    - name: Validate GitFlow branch order
+      shell: bash
+      env:
+        HEAD_REF: ${{ inputs.head-ref }}
+        BASE_REF: ${{ inputs.base-ref }}
+        FEATURE_PATTERN: ${{ inputs.feature-branch-pattern }}
+      run: |
+        set -euo pipefail
+
+        head="${HEAD_REF}"
+        base="${BASE_REF}"
+
+        echo "PR  :  ${head}  →  ${base}"
+        echo ""
+
+        # ── Allowed flows ─────────────────────────────────────────────────
+        # base = develop  →  head must match FEATURE_PATTERN (ERE)
+        # base = staging  →  head must be exactly "develop"
+        # base = main     →  head must be exactly "staging"
+        # ──────────────────────────────────────────────────────────────────
+        ok=0
+
+        case "${base}" in
+          develop)
+            [[ "${head}" =~ ${FEATURE_PATTERN} ]] && ok=1
+            ;;
+          staging)
+            [[ "${head}" == "develop" ]] && ok=1
+            ;;
+          main)
+            [[ "${head}" == "staging" ]] && ok=1
+            ;;
+        esac
+
+        if [[ "${ok}" -eq 1 ]]; then
+          echo "✓  '${head}'  →  '${base}'  is a valid GitFlow merge path."
+          exit 0
+        fi
+
+        echo "::error title=GitFlow violation::'${head}' is not allowed to merge into '${base}'."
+        echo ""
+        echo "Allowed merge paths"
+        echo "───────────────────────────────────────────────────"
+        echo "  feat/** · fix/** · chore/** · …  →  develop"
+        echo "  develop                          →  staging"
+        echo "  staging                          →  main"
+        echo "───────────────────────────────────────────────────"
+        echo ""
+        echo "To add a custom prefix, pass the feature-branch-pattern input."
+        echo "To suppress this check entirely, skip the step with an 'if:' condition."
+        exit 1
