@@ -1,0 +1,16 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: validate-git-flow-branch-order--workflow-action
+  description: Composite GitHub Action — asserts a PR follows the feat/ to develop to staging to main GitFlow promotion chain.
+  annotations:
+    github.com/project-slug: tibuqx/validate-git-flow-branch-order--workflow-action
+  tags:
+    - github-actions
+    - gitflow
+    - ci
+spec:
+  type: library
+  lifecycle: production
+  owner: group:default/architecture
+  system: ci-cd-tooling
