@@ -1,0 +1,11 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: validate-git-flow-branch-order--workflow-action
+  description: Automatically generated component for validate-git-flow-branch-order--workflow-action.
+  annotations:
+    github.com/project-slug: tibuqx/validate-git-flow-branch-order--workflow-action
+spec:
+  type: service
+  lifecycle: experimental
+  owner: group:default/engineering
