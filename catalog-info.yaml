@@ -5,10 +5,18 @@ metadata:
   description: Composite GitHub Action — asserts a PR follows the feat/ to develop to staging to main GitFlow promotion chain.
   annotations:
     github.com/project-slug: tibuqx/validate-git-flow-branch-order--workflow-action
+    tibuqx.com/approved-workflow: "tibuqx/versioning--workflow"
+    tibuqx.com/image-signature: "cosign-signed"
+    tibuqx.com/sbom-attached: "spdx-json"
+    tibuqx.com/infra-compliant: "cloud-run-scale-to-zero"
+    backstage.io/techdocs-ref: dir:.
   tags:
     - github-actions
     - gitflow
     - ci
+    - compliant
+    - cosign-signed
+    - spdx-sbom
 spec:
   type: library
   lifecycle: production
