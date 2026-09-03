@@ -1,28 +1,27 @@
 ###############################################################################
-# Composite action — Validate GitFlow Branch Order
+# Composite action — Validate GitHub Flow Branch Compliance (ADR-0046)
 #
-# Asserts that a pull request follows the required GitFlow promotion path:
+# Asserts that a pull request strictly adheres to GitHub Flow:
 #
-#   <feature-branch>  ──►  develop  ──►  staging  ──►  main
+#   <feat|fix|chore|docs|style|refactor|perf|test|ci|build|dependabot>/*  ──►  main
 #
-# Fails the step (exit 1) and emits a GitHub Actions error annotation when
-# the source → target pair does not match an allowed flow.
+# Fails the step (exit 1) and emits a GitHub Actions error annotation when:
+# 1. A PR targets a forbidden/deprecated branch (e.g. develop, staging, release/*).
+# 2. A PR branch name does not match the approved GitHub Flow short-lived prefix.
+# 3. A PR attempts to merge main into main or bypass branch standards.
 #
 # Usage (in a workflow step):
 #
-#   - uses: tibuqx/validate-git-flow-branch-order--workflow@v1
+#   - uses: tibuqx/validate-git-flow-branch-order--workflow-action@v2
 #     with:
 #       head-ref: ${{ github.head_ref }}
 #       base-ref: ${{ github.base_ref }}
-#
-# To customise which short-lived branches may target develop, override the
-# feature-branch-pattern input with your own ERE regex.
 ###############################################################################
 
-name: Validate GitFlow Branch Order
+name: Validate GitHub Flow Branch
 description: >
-  Fails if a PR skips a step in the feat/** → develop → staging → main
-  GitFlow promotion chain. Zero-dependency — no checkout required.
+  Enforces GitHub Flow (ADR-0046) by verifying that pull requests target main
+  from an approved short-lived feature branch. Zero-dependency — no checkout required.
 
 branding:
   icon: git-merge
@@ -35,21 +34,26 @@ inputs:
   base-ref:
     description: Target branch of the pull request (pass github.base_ref).
     required: true
+  allowed-base-branch:
+    description: Allowed target base branch for GitHub Flow (default: main).
+    required: false
+    default: 'main'
   feature-branch-pattern:
     description: >
-      ERE regex matched against the head ref to decide whether a branch is
-      allowed to target develop.  Override to add or remove prefixes.
+      ERE regex matched against the head ref to verify it is an approved
+      short-lived branch prefix (feat, fix, chore, docs, style, refactor, perf, test, ci, build, dependabot).
     required: false
-    default: '^(feat|feature|fix|bugfix|hotfix|chore|docs|refactor|test|ci|build)/.+'
+    default: '^(feat|feature|fix|bugfix|hotfix|chore|docs|style|refactor|perf|test|ci|build|dependabot)/.+'
 
 runs:
   using: composite
   steps:
-    - name: Validate GitFlow branch order
+    - name: Validate GitHub Flow branch rules (ADR-0046)
       shell: bash
       env:
         HEAD_REF: ${{ inputs.head-ref }}
         BASE_REF: ${{ inputs.base-ref }}
+        ALLOWED_BASE: ${{ inputs.allowed-base-branch }}
         FEATURE_PATTERN: ${{ inputs.feature-branch-pattern }}
       run: |
         set -euo pipefail
@@ -57,42 +61,51 @@ runs:
         head="${HEAD_REF}"
         base="${BASE_REF}"
 
-        echo "PR  :  ${head}  →  ${base}"
+        echo "================================================================"
+        echo "Validating PR Branch for GitHub Flow Compliance (ADR-0046)"
+        echo "Source (head) : ${head}"
+        echo "Target (base) : ${base}"
+        echo "================================================================"
         echo ""
 
-        # ── Allowed flows ─────────────────────────────────────────────────
-        # base = develop  →  head must match FEATURE_PATTERN (ERE)
-        # base = staging  →  head must be exactly "develop"
-        # base = main     →  head must be exactly "staging"
-        # ──────────────────────────────────────────────────────────────────
-        ok=0
-
-        case "${base}" in
-          develop)
-            [[ "${head}" =~ ${FEATURE_PATTERN} ]] && ok=1
-            ;;
-          staging)
-            [[ "${head}" == "develop" ]] && ok=1
-            ;;
-          main)
-            [[ "${head}" == "staging" ]] && ok=1
-            ;;
-        esac
-
-        if [[ "${ok}" -eq 1 ]]; then
-          echo "✓  '${head}'  →  '${base}'  is a valid GitFlow merge path."
-          exit 0
+        # Check 1: Forbidden branches check (develop, staging, release/*, hotfix/*)
+        if [[ "${base}" =~ ^(develop|staging|release/.*|hotfix/.*)$ ]]; then
+          echo "::error title=ADR-0046 Violation::Target branch '${base}' is forbidden under GitHub Flow (ADR-0046). Long-lived develop/staging/release branches have been eliminated. PRs must target '${ALLOWED_BASE}'."
+          exit 1
         fi
 
-        echo "::error title=GitFlow violation::'${head}' is not allowed to merge into '${base}'."
-        echo ""
-        echo "Allowed merge paths"
-        echo "───────────────────────────────────────────────────"
-        echo "  feat/** · fix/** · chore/** · …  →  develop"
-        echo "  develop                          →  staging"
-        echo "  staging                          →  main"
-        echo "───────────────────────────────────────────────────"
-        echo ""
-        echo "To add a custom prefix, pass the feature-branch-pattern input."
-        echo "To suppress this check entirely, skip the step with an 'if:' condition."
-        exit 1
+        # Check 2: Target must be the allowed base (default: main)
+        if [[ "${base}" != "${ALLOWED_BASE}" ]]; then
+          echo "::error title=GitHub Flow Violation::PR target '${base}' is invalid. Under ADR-0046 GitHub Flow, all PRs must target '${ALLOWED_BASE}'."
+          exit 1
+        fi
+
+        # Check 3: Head branch cannot be main
+        if [[ "${head}" == "${ALLOWED_BASE}" ]]; then
+          echo "::error title=GitHub Flow Violation::Source branch cannot be '${ALLOWED_BASE}'."
+          exit 1
+        fi
+
+        # Check 4: Head branch must match allowed short-lived feature branch pattern
+        if ! [[ "${head}" =~ ${FEATURE_PATTERN} ]]; then
+          echo "::error title=ADR-0046 Branch Naming Violation::Branch '${head}' does not follow the approved naming convention for GitHub Flow."
+          echo ""
+          echo "Allowed branch prefixes:"
+          echo "  - feat/*        (new feature)"
+          echo "  - fix/*         (bug fix)"
+          echo "  - chore/*       (maintenance / config)"
+          echo "  - docs/*        (documentation)"
+          echo "  - style/*       (formatting / styling)"
+          echo "  - refactor/*    (code refactoring)"
+          echo "  - perf/*        (performance improvements)"
+          echo "  - test/*        (tests)"
+          echo "  - ci/*          (CI/CD workflow changes)"
+          echo "  - build/*       (build system / dependencies)"
+          echo "  - dependabot/*  (automated dependency updates)"
+          echo ""
+          echo "Please rename your branch to match the pattern: <type>/<description> and reopen the PR."
+          exit 1
+        fi
+
+        echo "✅ Valid GitHub Flow PR: '${head}' → '${base}' strictly complies with ADR-0046."
+

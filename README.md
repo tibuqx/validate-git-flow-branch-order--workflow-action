@@ -1,12 +1,15 @@
 # validate-git-flow-branch-order--workflow-action
 
-Composite GitHub Action that enforces GitFlow branch promotion order on pull requests:
+Composite GitHub Action that enforces **GitHub Flow** branch conventions ([ADR-0046](https://github.com/tibuqx/swe-playbook--docs/blob/main/adrs/devops/0046-standardize-on-github-flow-only.md)) on pull requests:
 
 ```
-<feature-branch>  ──►  develop  ──►  staging  ──►  main
+<short-lived-branch>  ──►  main
 ```
 
-Fails the step (exit code 1) and emits a GitHub Actions error annotation when a pull request attempts to bypass required promotion stages.
+Fails the step (exit code 1) and emits a GitHub Actions error annotation when:
+1. A pull request targets forbidden/deprecated branches (`develop`, `staging`, `release/*`, `hotfix/*`).
+2. A branch name violates the approved short-lived prefix convention (`feat/*`, `fix/*`, `chore/*`, `docs/*`, `style/*`, `refactor/*`, `perf/*`, `test/*`, `ci/*`, `build/*`, `dependabot/*`).
+3. A pull request attempts to merge `main` into `main`.
 
 ---
 
@@ -14,40 +17,40 @@ Fails the step (exit code 1) and emits a GitHub Actions error annotation when a 
 
 ```mermaid
 C4Component
-    title Component diagram for validate-git-flow-branch-order--workflow-action
+    title Component diagram for validate-github-flow-branch action (ADR-0046)
 
-    Container_Boundary(action_boundary, "Composite Action: validate-git-flow-branch-order") {
-        Component(regex_validator, "Branch Pattern Validator", "Bash / ERE Regex", "Validates source branch prefix (feat, fix, chore, docs, etc.)")
-        Component(flow_validator, "Promotion Chain Validator", "Bash Case Evaluator", "Validates allowed promotion target (develop, staging, main)")
-        Component(annotation_reporter, "Error Annotator", "GitHub Workflow Commands", "Emits GitHub Actions error annotations on violation")
+    Container_Boundary(action_boundary, "Composite Action: validate-github-flow-branch") {
+        Component(base_validator, "Base Target Validator", "Bash Check", "Enforces target is 'main' and rejects develop/staging/release branches")
+        Component(prefix_validator, "Branch Pattern Validator", "Bash / ERE Regex", "Validates source branch prefix (feat, fix, chore, docs, etc.)")
+        Component(annotation_reporter, "Error Annotator", "GitHub Workflow Commands", "Emits GitHub Actions error annotations on violation (exit 1 / ::error)")
     }
 
-    System_Ext(caller_pr, "Pull Request Workflow", "Triggers validation on pull_request events")
+    System_Ext(caller_pr, "Pull Request Workflow", "Triggers validation on pull_request events targeting main")
 
-    Rel(caller_pr, flow_validator, "Passes head-ref and base-ref", "Action Inputs")
-    Rel(flow_validator, regex_validator, "Checks head against pattern when targeting develop", "Bash ERE")
-    Rel(flow_validator, annotation_reporter, "Emits failure message if invalid chain", "exit 1 / ::error")
+    Rel(caller_pr, base_validator, "Passes head-ref and base-ref", "Action Inputs")
+    Rel(base_validator, prefix_validator, "Verifies source branch against allowed prefixes", "Bash ERE")
+    Rel(prefix_validator, annotation_reporter, "Emits failure message if non-compliant", "exit 1 / ::error")
 ```
 
 ---
 
 ## Usage
 
-In your repository's `.github/workflows/` directory, add the action to your PR validation workflow:
+In your repository's `.github/workflows/pipeline.yml` (or PR validation workflow):
 
 ```yaml
-name: Validate PR Branch Order
+name: CI/CD Pipeline
 
 on:
   pull_request:
-    branches: [develop, staging, main]
+    branches: [main]
 
 jobs:
-  validate-branch:
+  ci:
     runs-on: ubuntu-latest
     steps:
-      - name: Validate GitFlow branch order
-        uses: tibuqx/validate-git-flow-branch-order--workflow-action@v1
+      - name: Validate GitHub Flow Branch (ADR-0046)
+        uses: tibuqx/validate-git-flow-branch-order--workflow-action@v2
         with:
           head-ref: ${{ github.head_ref }}
           base-ref: ${{ github.base_ref }}
@@ -55,13 +58,23 @@ jobs:
 
 ---
 
-## Allowed Merge Paths
+## Allowed Branch Prefixes
 
-| Base (Target) | Allowed Head (Source) Pattern | Description |
-|---|---|---|
-| `develop` | `feat/*`, `fix/*`, `chore/*`, `docs/*`, `refactor/*`, `test/*`, `ci/*`, `build/*` | Feature and fix branches |
-| `staging` | `develop` | Release candidate integration |
-| `main` | `staging` | Production release |
+Under **ADR-0046**, `main` is the only permanent branch. All contributions must use short-lived branches with approved prefixes:
+
+| Branch Prefix | Purpose |
+|---|---|
+| `feat/*` | New feature or capability |
+| `fix/*` | Bug fix |
+| `chore/*` | Maintenance, configuration, dependencies |
+| `docs/*` | Documentation changes |
+| `style/*` | Code style, formatting, UI CSS adjustments |
+| `refactor/*` | Code restructuring without behavior changes |
+| `perf/*` | Performance optimizations |
+| `test/*` | Adding or updating tests |
+| `ci/*` | CI/CD pipeline and automation changes |
+| `build/*` | Build toolchain and dependencies |
+| `dependabot/*` | Automated Dependabot dependency updates |
 
 ---
 
@@ -71,10 +84,12 @@ jobs:
 |---|---|---|---|
 | `head-ref` | **Yes** | `N/A` | Source branch of the pull request (pass `github.head_ref`). |
 | `base-ref` | **Yes** | `N/A` | Target branch of the pull request (pass `github.base_ref`). |
-| `feature-branch-pattern` | No | `^(feat|feature|fix|bugfix|hotfix|chore|docs|refactor|test|ci|build)/.+` | ERE regex matched against head ref when targeting develop. |
+| `allowed-base-branch` | No | `main` | Allowed target base branch for GitHub Flow. |
+| `feature-branch-pattern` | No | `^(feat|feature|fix|bugfix|hotfix|chore|docs|style|refactor|perf|test|ci|build|dependabot)/.+` | ERE regex matched against head ref. |
 
 ---
 
 ## Backstage Integration
 
-This repository is registered in Backstage as `validate-git-flow-branch-order--workflow-action` (`catalog-info.yaml`).\n
+This repository is registered in Backstage as `validate-git-flow-branch-order--workflow-action` (`catalog-info.yaml`).
+\n
