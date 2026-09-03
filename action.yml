@@ -29,21 +29,20 @@ branding:
 
 inputs:
   head-ref:
-    description: Source branch of the pull request (pass github.head_ref).
+    description: 'Source branch of the pull request (pass github.head_ref).'
     required: true
   base-ref:
-    description: Target branch of the pull request (pass github.base_ref).
+    description: 'Target branch of the pull request (pass github.base_ref).'
     required: true
   allowed-base-branch:
-    description: Allowed target base branch for GitHub Flow (default: main).
+    description: 'Allowed target base branch for GitHub Flow (default: main).'
     required: false
     default: 'main'
   feature-branch-pattern:
-    description: >
-      ERE regex matched against the head ref to verify it is an approved
-      short-lived branch prefix (feat, fix, chore, docs, style, refactor, perf, test, ci, build, dependabot).
+    description: 'ERE regex matched against the head ref to verify it is an approved short-lived branch prefix.'
     required: false
     default: '^(feat|feature|fix|bugfix|hotfix|chore|docs|style|refactor|perf|test|ci|build|dependabot)/.+'
+
 
 runs:
   using: composite
