@@ -2,17 +2,17 @@ apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
   name: validate-git-flow-branch-order--workflow-action
-  description: Composite GitHub Action — asserts a PR follows the feat/ to develop to staging to main GitFlow promotion chain.
+  description: Composite GitHub Action — enforces GitHub Flow (ADR-0046) branch conventions on PRs.
   annotations:
     github.com/project-slug: tibuqx/validate-git-flow-branch-order--workflow-action
     tibuqx.com/approved-workflow: "tibuqx/versioning--workflow"
     tibuqx.com/image-signature: "cosign-signed"
     tibuqx.com/sbom-attached: "spdx-json"
-    tibuqx.com/infra-compliant: "cloud-run-scale-to-zero"
+    tibuqx.com/infra-compliant: "github-actions-composite"
     backstage.io/techdocs-ref: dir:.
   tags:
     - github-actions
-    - gitflow
+    - github-flow
     - ci
     - compliant
     - cosign-signed
@@ -22,3 +22,4 @@ spec:
   lifecycle: production
   owner: group:default/architecture
   system: ci-cd-tooling
+
